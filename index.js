@@ -47,6 +47,36 @@ const actionMap = {
         await hub.sleep(legoSleepTime);
         // Start the train again
         await motor.rampPower(legoMotorLowPower, legoMotorFullPower, legoRampUpTime);
+    },
+        // Start Train
+    2: async (motor, led, hub) => {
+        console.log("Handling Start Train...")
+        //await motor.brake();
+        for (i = 0; i < 2; i++) {
+            await led.setBrightness(100);
+            await hub.sleep(250);
+            await led.setBrightness(0);
+            await hub.sleep(250);
+        }
+        // Add a 1-second break
+        await hub.sleep(legoSleepTime);
+        // Start the train again
+        await motor.rampPower(legoMotorLowPower, legoMotorFullPower, legoRampUpTime);
+    },
+    // Stop Train
+    3: async (motor, led, hub) => {
+        console.log("Handling  Stop Train...")
+        await motor.brake();
+        for (i = 0; i < 2; i++) {
+            await led.setBrightness(100);
+            await hub.sleep(250);
+            await led.setBrightness(0);
+            await hub.sleep(250);
+        }
+        // Add a 1-second break
+        await hub.sleep(legoSleepTime);
+        // Start the train again
+       //  await motor.rampPower(legoMotorLowPower, legoMotorFullPower, legoRampUpTime);
     }
 };
 
