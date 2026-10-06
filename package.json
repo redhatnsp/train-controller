@@ -7,7 +7,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Demo-AI-Edge-Crazy-Train/intelligent-train.git"
+    "url": "https://github.com/redhatnsp/train-controller.git"
   },
   "keywords": [
     "Lego",
@@ -21,15 +21,15 @@
   "author": "Mourad Ouachani",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Demo-AI-Edge-Crazy-Train/intelligent-train/issues"
+    "url": "https://github.com/redhatnsp/train-controller/issues"
   },
-  "homepage": "https://github.com/Demo-AI-Edge-Crazy-Train/intelligent-train#readme",
+  "homepage": "https://github.com/redhatnsp/train-controller#readme",
   "dependencies": {
     "@grpc/grpc-js": "^1.10.0",
     "@grpc/proto-loader": "^0.7.10",
     "async": "^3.2.5",
     "index.js": "^0.0.3",
     "mqtt": "^5.3.5",
-    "node-poweredup": "Demo-AI-Edge-Crazy-Train/node-poweredup#noble-fork"
+    "node-poweredup": "redhatnsp/node-poweredup#noble-fork"
   }
 }
