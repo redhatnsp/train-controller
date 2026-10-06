@@ -44,5 +44,8 @@ coverage
 storybook-static
 .env
 
+#python venv for node-gyp
+.venv-nodegyp/
+
 #heavy files
 ./payloads/*

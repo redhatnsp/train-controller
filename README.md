@@ -46,24 +46,44 @@ sudo dnf install -y mosquitto
 
 On macos
 
+Keep the mosquitto directory under `$HOME`. Podman on macOS runs inside a VM that only
+shares `/Users`, `/private` and `/var/folders` with the host, so a bind mount from `/tmp`
+fails with `statfs /tmp/mosquitto/config: no such file or directory`.
+
 ```sh
-mkdir -p /tmp/mosquitto/{config,data,log}
-tee /tmp/mosquitto/config/mosquitto.conf <<EOF
+mkdir -p "$HOME"/mosquitto/{config,data,log}
+tee "$HOME/mosquitto/config/mosquitto.conf" <<EOF
 persistence true
 persistence_location /mosquitto/data/
 listener 1883 0.0.0.0
 protocol mqtt
 allow_anonymous true
-log_dest file /mosquitto/log/mosquitto.log
+log_dest stdout
 EOF
+chmod -R a+rwX "$HOME"/mosquitto/{data,log}
 brew install mosquitto
 ```
+
+`log_dest stdout` keeps the broker logs visible via `podman logs mosquitto` and avoids
+write-permission errors, since the container runs as uid 1883 against a virtiofs mount.
 
 Install package dependencies nodejs.
 
 ```sh
 npm install
 ```
+
+If this fails while building `@abandonware/noble` with `ModuleNotFoundError: No module
+named 'distutils'`, the bundled node-gyp (9.4.1) is being run against Python 3.12 or
+newer, which dropped `distutils`. Point node-gyp at a Python 3.11 venv instead:
+
+```sh
+python3.11 -m venv .venv-nodegyp
+export npm_config_python="$PWD/.venv-nodegyp/bin/python"
+npm install
+```
+
+Node v26 works despite the v20.7.0 listed above, once the Python issue is resolved.
 
 ### Test
 
@@ -76,8 +96,19 @@ sudo podman run -d --rm --name mosquitto -p 1883:1883 -p 9001:9001 -v /tmp/mosqu
 Run the mqtt broker on macos.
 
 ```sh
-podman run -d --rm --name mosquitto -p 1883:1883 -p 9001:9001 -v /Users/mouchan/projects/mosquitto/config:/mosquitto/config -v /Users/mouchan/projects/mosquitto/data:/mosquitto/data -v /Users/mouchan/projects/mosquitto/log:/mosquitto/log docker.io/library/eclipse-mosquitto:2.0.18
+podman run -d --rm --name mosquitto -p 1883:1883 -p 9001:9001 -v "$HOME/mosquitto/config:/mosquitto/config" -v "$HOME/mosquitto/data:/mosquitto/data" -v "$HOME/mosquitto/log:/mosquitto/log" docker.io/library/eclipse-mosquitto:2.0.18
 ```
+
+Confirm the config was actually mounted:
+
+```sh
+podman logs mosquitto
+```
+
+You should see `Config loaded from /mosquitto/config/mosquitto.conf.`. If that line is
+missing, the mount did not reach the container and mosquitto 2.0 has fallen back to its
+defaults (localhost-only listener, `allow_anonymous false`), which refuses every
+connection from the host.
 
 On linux, you have to configure DBUS:
 
