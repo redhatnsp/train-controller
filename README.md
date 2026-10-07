@@ -164,12 +164,43 @@ Handling DangerAhead...
 Processed command 1!
 ```
 
+## Configuration
+
+Everything is set through environment variables; there is no config file.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MQTT_BROKER_URL` | `mqtt://localhost:1883` | Broker to subscribe to |
+| `MQTT_TOPIC` | `train-command` | Topic commands arrive on |
+| `LEGO_BACKEND` | `bluetooth` | Which backend to load from `src/`. Set to `mock` to run with no hardware |
+| `LEGO_MOTOR_FULL_POWER` | `100` | Motor power for normal running |
+| `LEGO_MOTOR_LOW_POWER` | `70` | Motor power after a SpeedLimit sign, and the floor of the ramp-up |
+| `LEGO_SLEEP_TIME` | `1000` | Milliseconds to pause mid-action, after the LED flashes |
+| `LEGO_RAMPUP_TIME` | `1000` | Milliseconds to ramp from low to full power |
+| `DEBUG` | *(unset)* | `debug` namespaces to print: `main` for MQTT and command handling, `lego-gear-bluetooth` or `lego-gear-mock` for the backend |
+
+Most of the interesting logging is on the `main` namespace, so `DEBUG=main` is usually
+what you want; without it the MQTT messages are invisible.
+
 ## Available commands
 
-  ```text
-  0: "SpeedLimit_30",
-  1: "DangerAhead",
-  ```
+The payload on `train-command` is not JSON — it is the command id as a bare string.
+
+| Id | Action | Behaviour |
+|---|---|---|
+| `0` | SpeedLimit_30 | Drop to `LEGO_MOTOR_LOW_POWER`, flash the LED, pause, return to full power |
+| `1` | DangerAhead | Brake, flash the LED, pause, ramp back up |
+| `2` | Start Train | Flash the LED, pause, ramp up |
+| `3` | Stop Train | Brake, flash the LED, and stay stopped |
+| `-1` | *(no detections)* | Not in the action map; logged as unknown and ignored |
+
+Commands `0` and `1` come from the AI pipeline — they are the model's class ids, passed
+through `train-ceq-app` unchanged. There is no translation layer, so renumbering the
+model's classes changes what the train does.
+
+Commands `2` and `3` are not produced by the AI path at all. They come from the operator
+buttons on the monitoring app, which reach `train-capture-image-app`, which publishes
+them to this topic directly.
 
 ## Enabling the Mock
 
@@ -177,6 +208,44 @@ If you do not have a proper Lego Hub, you can mock it.
 
 ```sh
 export LEGO_BACKEND=mock
-export DEBUG="lego-gear-mock"
+export DEBUG="main,lego-gear-mock"
 node ./index.js
 ```
+
+Include the `main` namespace as well as the backend one, otherwise the MQTT subscription
+and the received commands are not logged and it looks like nothing is happening.
+
+With the mock backend no Bluetooth stack is loaded at all — `index.js` only requires
+`./src/${LEGO_BACKEND}`, so `src/bluetooth.js` and its native dependencies are never
+touched. This is the quickest way to exercise the command path on a machine with no LEGO
+hardware.
+
+## Known issues
+
+- **The process exits when the MQTT connection drops.** The broker `close` event is wired
+  straight to `cleanupAndExit()`, which calls `process.exit(0)`. A brief broker blip
+  therefore terminates the controller; under MicroShift that shows up as a pod restart,
+  after which the hub has to be paired again within the short window described below.
+  This is the leading suspect for the "train runs for about 30 seconds and then stops"
+  symptom in the demo runbook — worth checking the pod restart count before changing
+  anything else.
+- **Commands arriving during an action are dropped, not queued.** An `actionInProgress`
+  flag gates the handler, and an action takes about two seconds for `0` and `3` (four
+  250 ms LED flashes plus `LEGO_SLEEP_TIME`) and about three for `1` and `2`, which also
+  ramp back up over `LEGO_RAMPUP_TIME`. Anything received in that window is logged as
+  `Ignoring command N since the last one is still ongoing` and discarded. At the capture
+  app's default 30 ms frame interval the large majority of detections never reach the
+  motor. This is deliberate — it stops the train stuttering — but it is worth knowing
+  before trying to diagnose "missed" signs.
+- **The train starts on its own.** When the hub reports `ready`, the controller
+  immediately ramps the motor to full power, before any MQTT message arrives. That is
+  why pressing the button on the engine is enough to set the train moving.
+- **Pairing is timing sensitive.** In the field the hub frequently fails to connect
+  unless the Bluetooth button is pressed within about 30 seconds of the controller
+  starting. The documented workaround is to restart the deployment and press the button
+  immediately afterwards.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file
+for details.
